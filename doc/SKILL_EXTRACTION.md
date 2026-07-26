@@ -42,7 +42,7 @@ addresses the row as `table_base + skill_id * 0xa4`.
 | `0x34` | `u8` | Raw overcast cost; valid only when flag `0x00000001` is set, otherwise ignored. |
 | `0x35` | `u8` | Encoded energy cost: `11` means 15 energy, `12` means 25, and other values are literal. |
 | `0x36` | `u8` | Health cost. |
-| `0x38` | `u32` | Adrenaline cost. |
+| `0x38` | `u32` | Internal adrenaline units; 25 units correspond to one displayed strike. |
 | `0x3c` | `f32` | Activation time in seconds. |
 | `0x40` | `f32` | Aftercast delay in seconds. |
 | `0x44` | `u32` | Duration at attribute rank 0. |
@@ -75,9 +75,22 @@ Confirmed flag bits at `0x10` are:
 | `0x00400000` | PvP-only. |
 | `0x02000000` | Not playable. |
 
-### 2.1 Attribute-scaled template values
+### 2.1 Adrenaline cost
 
-Skill output schema 2 retains the six raw endpoint values used by the three
+The client table stores adrenaline in internal units, but the official client
+displays the minimum whole number of strikes required to reach that amount:
+
+$$
+\text{strikes} = \left\lceil \frac{\text{units}}{25} \right\rceil
+$$
+
+For example, Gash/Entaille stores `140` units and displays `6` strikes. Skill
+output schema 3 serializes the displayed value as `costs.adrenaline` and
+preserves the table value as `costs.adrenaline_units`.
+
+### 2.2 Attribute-scaled template values
+
+Skill output schema 3 retains the six raw endpoint values used by the three
 description placeholders:
 
 | Placeholder | Rank-0 / rank-15 offsets | JSON endpoints |

@@ -1,7 +1,8 @@
 use super::{
     ExtractedSkill, OutputCampaignStats, OutputCounts, OutputManifest, SKILL_FLAG_NOT_PLAYABLE,
     SKILL_FLAG_PVE, SKILL_FLAG_PVP, SKILL_OUTPUT_SCHEMA_VERSION, SkillCosts, SkillFlags,
-    SkillScaling, SkillTiming, attribute_name, campaign_name, decoded_energy_cost,
+    SkillScaling, SkillTiming, adrenaline_strikes, attribute_name, campaign_name,
+    decoded_energy_cost,
     icons::export_skill_icon,
     overcast_cost, profession_name, skill_type_name,
     table::{SKILL_RECORD_SIZE, locate_skill_table},
@@ -204,6 +205,7 @@ fn extract_skills_with_icon_dirs(
             row_bytes[0x0F],
         ]);
         let energy_cost_encoded = row_bytes[0x35];
+        let adrenaline_units = skill_u32(row_bytes, 0x38);
         let skill_equip_type_code = row_bytes[0x33];
         let duration_0_attribute = skill_u32(row_bytes, 0x44);
         let duration_15_attribute = skill_u32(row_bytes, 0x48);
@@ -237,12 +239,8 @@ fn extract_skills_with_icon_dirs(
                 energy: decoded_energy_cost(energy_cost_encoded),
                 energy_encoded: energy_cost_encoded,
                 health: row_bytes[0x36],
-                adrenaline: u32::from_le_bytes([
-                    row_bytes[0x38],
-                    row_bytes[0x39],
-                    row_bytes[0x3A],
-                    row_bytes[0x3B],
-                ]),
+                adrenaline: adrenaline_strikes(adrenaline_units),
+                adrenaline_units,
                 overcast: overcast_cost(flags_val, row_bytes[0x34]),
             },
             timing: SkillTiming {

@@ -35,6 +35,7 @@ struct SkillCosts {
     energy_encoded: u8,
     health: u8,
     adrenaline: u32,
+    adrenaline_units: u32,
     overcast: u8,
 }
 
@@ -93,7 +94,7 @@ struct OutputManifest {
     counts: OutputCounts,
     skills: Vec<ExtractedSkill>,
 }
-const SKILL_OUTPUT_SCHEMA_VERSION: u32 = 2;
+const SKILL_OUTPUT_SCHEMA_VERSION: u32 = 3;
 const EXPECTED_SKILL_TOTAL: usize = 1488;
 const EXPECTED_SKILL_DISTRIBUTION: [(&str, usize, usize); 5] = [
     ("core", 233, 48),
@@ -123,6 +124,12 @@ fn validate_skill_distribution(
         anyhow::bail!("skill catalog contains {total} skills instead of {EXPECTED_SKILL_TOTAL}");
     }
     Ok(())
+}
+
+const ADRENALINE_UNITS_PER_STRIKE: u32 = 25;
+
+fn adrenaline_strikes(units: u32) -> u32 {
+    units / ADRENALINE_UNITS_PER_STRIKE + u32::from(units % ADRENALINE_UNITS_PER_STRIKE != 0)
 }
 
 fn decoded_energy_cost(encoded: u8) -> u32 {
@@ -286,6 +293,15 @@ mod tests {
         let error = validate_skill_distribution(&campaigns, 251)
             .expect_err("incomplete skill catalog must fail");
         assert!(format!("{error:#}").contains("core skill distribution"));
+    }
+
+    #[test]
+    fn converts_internal_adrenaline_units_to_displayed_strikes() {
+        assert_eq!(adrenaline_strikes(0), 0);
+        assert_eq!(adrenaline_strikes(25), 1);
+        assert_eq!(adrenaline_strikes(26), 2);
+        assert_eq!(adrenaline_strikes(140), 6);
+        assert_eq!(adrenaline_strikes(150), 6);
     }
 
     #[test]
