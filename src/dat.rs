@@ -97,10 +97,11 @@ impl DatArchive {
                 .parent()
                 .unwrap_or_else(|| Path::new("."))
                 .join(sibling_name);
-            if sibling_path.exists() && sibling_path != self.path {
-                if let Ok(sib) = DatArchive::open(&sibling_path) {
-                    self.sibling = Some(Box::new(sib));
-                }
+            if sibling_path.exists()
+                && sibling_path != self.path
+                && let Ok(sib) = DatArchive::open(&sibling_path)
+            {
+                self.sibling = Some(Box::new(sib));
             }
         }
     }
@@ -109,10 +110,10 @@ impl DatArchive {
         let is_snapshot = self.path.file_name().and_then(|s| s.to_str()) == Some("Gw.snapshot");
         if is_snapshot {
             self.ensure_sibling();
-            if let Some(ref mut sib) = self.sibling {
-                if let Some(bytes) = sib.read_file_id_direct(file_id)? {
-                    return Ok(Some(bytes));
-                }
+            if let Some(sib) = &mut self.sibling
+                && let Some(bytes) = sib.read_file_id_direct(file_id)?
+            {
+                return Ok(Some(bytes));
             }
             return self.read_file_id_direct(file_id);
         }
