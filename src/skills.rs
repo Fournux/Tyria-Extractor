@@ -11,7 +11,6 @@ const SKILL_FLAG_OVERCAST: u32 = 0x0000_0001;
 const SKILL_FLAG_PVE: u32 = 0x0008_0000;
 const SKILL_FLAG_PVP: u32 = 0x0040_0000;
 const SKILL_FLAG_NOT_PLAYABLE: u32 = 0x0200_0000;
-const MAX_SKILL_ATTRIBUTE_RANK: usize = 20;
 
 #[derive(Serialize)]
 struct SkillTiming {
@@ -23,19 +22,11 @@ struct SkillTiming {
 }
 
 #[derive(Serialize)]
-struct SkillScalingValues {
-    str1: [u32; MAX_SKILL_ATTRIBUTE_RANK + 1],
-    str2: [u32; MAX_SKILL_ATTRIBUTE_RANK + 1],
-    str3: [u32; MAX_SKILL_ATTRIBUTE_RANK + 1],
-}
-
-#[derive(Serialize)]
 struct SkillScaling {
     scale_0: u32,
     scale_15: u32,
     bonus_scale_0: u32,
     bonus_scale_15: u32,
-    values_by_attribute_rank: SkillScalingValues,
 }
 
 #[derive(Serialize)]
@@ -148,28 +139,6 @@ fn overcast_cost(special_flags: u32, raw: u8) -> u8 {
     } else {
         0
     }
-}
-
-fn attribute_rank_table(
-    rank_0: u32,
-    rank_15: u32,
-) -> anyhow::Result<[u32; MAX_SKILL_ATTRIBUTE_RANK + 1]> {
-    let rank_0 = i64::from(rank_0);
-    let delta = i64::from(rank_15) - rank_0;
-    let value = |rank: usize| {
-        let numerator = delta * rank as i64;
-        let rounded = if numerator >= 0 {
-            (numerator + 7) / 15
-        } else {
-            -((-numerator + 7) / 15)
-        };
-        (rank_0 + rounded).max(0)
-    };
-    let rank_20 = value(MAX_SKILL_ATTRIBUTE_RANK);
-    if rank_20 > i64::from(u32::MAX) {
-        anyhow::bail!("attribute scaling exceeds u32 at rank 20");
-    }
-    Ok(std::array::from_fn(|rank| value(rank) as u32))
 }
 
 fn campaign_name(code: u32) -> &'static str {
@@ -317,22 +286,6 @@ mod tests {
         let error = validate_skill_distribution(&campaigns, 251)
             .expect_err("incomplete skill catalog must fail");
         assert!(format!("{error:#}").contains("core skill distribution"));
-    }
-
-    #[test]
-    fn projects_client_attribute_scaling_through_rank_20() {
-        assert_eq!(
-            attribute_rank_table(20, 65).unwrap(),
-            [
-                20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74, 77, 80,
-            ]
-        );
-
-        let rounded = attribute_rank_table(26, 50).unwrap();
-        assert_eq!((rounded[1], rounded[15], rounded[20]), (28, 50, 58));
-
-        let descending = attribute_rank_table(10, 0).unwrap();
-        assert_eq!((descending[1], descending[15], descending[20]), (9, 0, 0));
     }
 
     #[test]

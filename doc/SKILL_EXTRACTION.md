@@ -77,17 +77,18 @@ Confirmed flag bits at `0x10` are:
 
 ### 2.1 Attribute-scaled template values
 
-Skill output schema 2 retains the six raw endpoint values and also projects
-the three description placeholders through attribute ranks `0..=20`:
+Skill output schema 2 retains the six raw endpoint values used by the three
+description placeholders:
 
-| Placeholder | Rank-0 / rank-15 offsets | JSON table |
+| Placeholder | Rank-0 / rank-15 offsets | JSON endpoints |
 |---|---|---|
-| `%str1%` | `0x5c` / `0x60` | `scaling.values_by_attribute_rank.str1` |
-| `%str2%` | `0x64` / `0x68` | `scaling.values_by_attribute_rank.str2` |
-| `%str3%` | `0x44` / `0x48` | `scaling.values_by_attribute_rank.str3` |
+| `%str1%` | `0x5c` / `0x60` | `scaling.scale_0` / `scaling.scale_15` |
+| `%str2%` | `0x64` / `0x68` | `scaling.bonus_scale_0` / `scaling.bonus_scale_15` |
+| `%str3%` | `0x44` / `0x48` | `timing.duration_0_attribute` / `timing.duration_15_attribute` |
 
-The array index is the attribute rank. The official client computes each
-entry as:
+The output does not serialize values for every attribute rank. Consumers
+derive a value for effective attribute rank \(r\) with the official client
+formula:
 
 $$
 \operatorname{value}(r) =
@@ -96,10 +97,10 @@ $$
 $$
 
 where `round` selects the nearest integer, with half values rounded away from
-zero. For Eclat de feu (`20` at rank 0 and `65` at rank 15), the `str1` table
-is `20, 23, 26, ..., 65, 68, ..., 80`; rank 16 therefore resolves `%str1%`
-to `68`. Localized descriptions remain templates so downstream consumers can
-select the value for the character's effective attribute rank.
+zero. For Eclat de feu (`20` at rank 0 and `65` at rank 15), rank 16
+therefore resolves `%str1%` to `68`. Localized descriptions remain templates
+so downstream consumers can substitute values for the character's effective
+attribute rank.
 
 ## 3. Localized strings
 

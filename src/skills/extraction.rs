@@ -1,8 +1,7 @@
 use super::{
     ExtractedSkill, OutputCampaignStats, OutputCounts, OutputManifest, SKILL_FLAG_NOT_PLAYABLE,
     SKILL_FLAG_PVE, SKILL_FLAG_PVP, SKILL_OUTPUT_SCHEMA_VERSION, SkillCosts, SkillFlags,
-    SkillScaling, SkillScalingValues, SkillTiming, attribute_name, attribute_rank_table,
-    campaign_name, decoded_energy_cost,
+    SkillScaling, SkillTiming, attribute_name, campaign_name, decoded_energy_cost,
     icons::export_skill_icon,
     overcast_cost, profession_name, skill_type_name,
     table::{SKILL_RECORD_SIZE, locate_skill_table},
@@ -212,14 +211,6 @@ fn extract_skills_with_icon_dirs(
         let scale_15 = skill_u32(row_bytes, 0x60);
         let bonus_scale_0 = skill_u32(row_bytes, 0x64);
         let bonus_scale_15 = skill_u32(row_bytes, 0x68);
-        let values_by_attribute_rank = SkillScalingValues {
-            str1: attribute_rank_table(scale_0, scale_15)
-                .with_context(|| format!("building %str1% scaling table for skill {index}"))?,
-            str2: attribute_rank_table(bonus_scale_0, bonus_scale_15)
-                .with_context(|| format!("building %str2% scaling table for skill {index}"))?,
-            str3: attribute_rank_table(duration_0_attribute, duration_15_attribute)
-                .with_context(|| format!("building %str3% scaling table for skill {index}"))?,
-        };
 
         let icon_hd_texture_hash = u32::from_le_bytes([
             row_bytes[0x90],
@@ -281,7 +272,6 @@ fn extract_skills_with_icon_dirs(
                 scale_15,
                 bonus_scale_0,
                 bonus_scale_15,
-                values_by_attribute_rank,
             },
             target_code: row_bytes[0x31],
             aoe_range: f32::from_le_bytes([

@@ -53,14 +53,14 @@ from a rank, rank-0 value, and rank-15 value. It evaluates
 values away from zero, adds `value0`, and clamps negative results to zero.
 The same client image stores `15.0` at `0x0094B930`; the helper at
 `0x0046DF80` applies the signed half adjustment before integer conversion.
-The extractor reproduces this behavior for ranks 0 through 20 without
-floating-point drift.
+The extractor preserves the raw endpoints; consumers can reproduce this
+formula without storing derived values for every rank.
 
 Across 1,261 locally decoded English skill templates containing placeholders,
 only `%str1%`, `%str2%`, and `%str3%` occur. Every occurrence has a nonzero
 corresponding endpoint pair: scale (`0x5c` / `0x60`), bonus scale (`0x64` /
-`0x68`), and duration (`0x44` / `0x48`) respectively. Schema 2 therefore
-emits the three computed tables under `scaling.values_by_attribute_rank`.
+`0x68`), and duration (`0x44` / `0x48`) respectively. Schema 2 emits those
+six endpoints and leaves rank-specific projection to consumers.
 
 The 2026-07-26 `Gw.exe` contains one appended row, ID `3442`: a non-elite
 Nightfall PvP family-0 variant linked reciprocally with base ID `1547`. It

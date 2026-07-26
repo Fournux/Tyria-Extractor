@@ -107,7 +107,7 @@ duplicate or missing `capture_seq` values, and every pre-cutover JSONL.
 
 | Dataset | Extracted data |
 |---|---|
-| Skills | Stable IDs, gameplay metadata, localized text, attribute scaling tables, and relationships |
+| Skills | Stable IDs, gameplay metadata, localized text, attribute scaling endpoints, and relationships |
 | Skill icons | Standard- and high-resolution PNG icons |
 | DAT textures | Web-ready PNGs from decodable ATEX, ATTX, DDS, and inline FFNA textures |
 | Items | Runtime identities, metadata, localized names and descriptions |
