@@ -75,6 +75,32 @@ Confirmed flag bits at `0x10` are:
 | `0x00400000` | PvP-only. |
 | `0x02000000` | Not playable. |
 
+### 2.1 Attribute-scaled template values
+
+Skill output schema 2 retains the six raw endpoint values and also projects
+the three description placeholders through attribute ranks `0..=20`:
+
+| Placeholder | Rank-0 / rank-15 offsets | JSON table |
+|---|---|---|
+| `%str1%` | `0x5c` / `0x60` | `scaling.values_by_attribute_rank.str1` |
+| `%str2%` | `0x64` / `0x68` | `scaling.values_by_attribute_rank.str2` |
+| `%str3%` | `0x44` / `0x48` | `scaling.values_by_attribute_rank.str3` |
+
+The array index is the attribute rank. The official client computes each
+entry as:
+
+$$
+\operatorname{value}(r) =
+\max\left(0,\ v_0 +
+\operatorname{round}\left(\frac{r(v_{15}-v_0)}{15}\right)\right)
+$$
+
+where `round` selects the nearest integer, with half values rounded away from
+zero. For Eclat de feu (`20` at rank 0 and `65` at rank 15), the `str1` table
+is `20, 23, 26, ..., 65, 68, ..., 80`; rank 16 therefore resolves `%str1%`
+to `68`. Localized descriptions remain templates so downstream consumers can
+select the value for the character's effective attribute rank.
+
 ## 3. Localized strings
 
 The three string fields contain language-independent ids. Each id selects one file-array slot and one record within that file:

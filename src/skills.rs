@@ -11,6 +11,7 @@ const SKILL_FLAG_OVERCAST: u32 = 0x0000_0001;
 const SKILL_FLAG_PVE: u32 = 0x0008_0000;
 const SKILL_FLAG_PVP: u32 = 0x0040_0000;
 const SKILL_FLAG_NOT_PLAYABLE: u32 = 0x0200_0000;
+const MAX_SKILL_ATTRIBUTE_RANK: usize = 20;
 
 #[derive(Serialize)]
 struct SkillTiming {
@@ -19,6 +20,22 @@ struct SkillTiming {
     recharge_seconds: u32,
     duration_0_attribute: u32,
     duration_15_attribute: u32,
+}
+
+#[derive(Serialize)]
+struct SkillScalingValues {
+    str1: [u32; MAX_SKILL_ATTRIBUTE_RANK + 1],
+    str2: [u32; MAX_SKILL_ATTRIBUTE_RANK + 1],
+    str3: [u32; MAX_SKILL_ATTRIBUTE_RANK + 1],
+}
+
+#[derive(Serialize)]
+struct SkillScaling {
+    scale_0: u32,
+    scale_15: u32,
+    bonus_scale_0: u32,
+    bonus_scale_15: u32,
+    values_by_attribute_rank: SkillScalingValues,
 }
 
 #[derive(Serialize)]
@@ -51,12 +68,14 @@ struct ExtractedSkill {
     profession: String,
     profession_code: u8,
     attribute_code: u8,
+    attribute: String,
     #[serde(rename = "type")]
     skill_type: String,
     type_code: u32,
     elite: bool,
     costs: SkillCosts,
     timing: SkillTiming,
+    scaling: SkillScaling,
     target_code: u8,
     aoe_range: f32,
     constant_effect: f32,
@@ -83,7 +102,7 @@ struct OutputManifest {
     counts: OutputCounts,
     skills: Vec<ExtractedSkill>,
 }
-const SKILL_OUTPUT_SCHEMA_VERSION: u32 = 1;
+const SKILL_OUTPUT_SCHEMA_VERSION: u32 = 2;
 const EXPECTED_SKILL_TOTAL: usize = 1488;
 const EXPECTED_SKILL_DISTRIBUTION: [(&str, usize, usize); 5] = [
     ("core", 233, 48),
@@ -131,6 +150,28 @@ fn overcast_cost(special_flags: u32, raw: u8) -> u8 {
     }
 }
 
+fn attribute_rank_table(
+    rank_0: u32,
+    rank_15: u32,
+) -> anyhow::Result<[u32; MAX_SKILL_ATTRIBUTE_RANK + 1]> {
+    let rank_0 = i64::from(rank_0);
+    let delta = i64::from(rank_15) - rank_0;
+    let value = |rank: usize| {
+        let numerator = delta * rank as i64;
+        let rounded = if numerator >= 0 {
+            (numerator + 7) / 15
+        } else {
+            -((-numerator + 7) / 15)
+        };
+        (rank_0 + rounded).max(0)
+    };
+    let rank_20 = value(MAX_SKILL_ATTRIBUTE_RANK);
+    if rank_20 > i64::from(u32::MAX) {
+        anyhow::bail!("attribute scaling exceeds u32 at rank 20");
+    }
+    Ok(std::array::from_fn(|rank| value(rank) as u32))
+}
+
 fn campaign_name(code: u32) -> &'static str {
     match code {
         0 => "core",
@@ -159,6 +200,59 @@ fn profession_name(code: u8) -> &'static str {
     }
 }
 
+fn attribute_name(code: u8, profession_code: u8) -> &'static str {
+    match code {
+        0 => {
+            if profession_code == 5 {
+                "fast_casting"
+            } else {
+                "none"
+            }
+        }
+        1 => "illusion_magic",
+        2 => "domination_magic",
+        3 => "inspiration_magic",
+        4 => "blood_magic",
+        5 => "death_magic",
+        6 => "soul_reaping",
+        7 => "curses",
+        8 => "air_magic",
+        9 => "earth_magic",
+        10 => "fire_magic",
+        11 => "water_magic",
+        12 => "energy_storage",
+        13 => "healing_prayers",
+        14 => "smiting_prayers",
+        15 => "protection_prayers",
+        16 => "divine_favor",
+        17 => "strength",
+        18 => "axe_mastery",
+        19 => "hammer_mastery",
+        20 => "swordsmanship",
+        21 => "tactics",
+        22 => "beast_mastery",
+        23 => "expertise",
+        24 => "wilderness_survival",
+        25 => "marksmanship",
+        29 => "dagger_mastery",
+        30 => "deadly_arts",
+        31 => "shadow_arts",
+        32 => "communing",
+        33 => "restoration_magic",
+        34 => "channeling_magic",
+        35 => "critical_strikes",
+        36 => "spawning_power",
+        37 => "spear_mastery",
+        38 => "command",
+        39 => "motivation",
+        40 => "leadership",
+        41 => "scythe_mastery",
+        42 => "wind_prayers",
+        43 => "earth_prayers",
+        44 => "mysticism",
+        _ => "none",
+    }
+}
 fn skill_type_name(code: u32) -> &'static str {
     match code {
         3 => "stance",
@@ -183,6 +277,17 @@ mod tests {
 
     #[test]
     fn validates_required_skill_distribution() {
+        assert_eq!(EXPECTED_SKILL_TOTAL, 1488);
+        assert_eq!(
+            EXPECTED_SKILL_DISTRIBUTION,
+            [
+                ("core", 233, 48),
+                ("prophecies", 159, 70),
+                ("factions", 292, 104),
+                ("nightfall", 294, 125),
+                ("eye_of_the_north", 160, 3),
+            ]
+        );
         let campaigns = EXPECTED_SKILL_DISTRIBUTION
             .into_iter()
             .map(|(campaign, non_elite, elite)| {
@@ -212,6 +317,22 @@ mod tests {
         let error = validate_skill_distribution(&campaigns, 251)
             .expect_err("incomplete skill catalog must fail");
         assert!(format!("{error:#}").contains("core skill distribution"));
+    }
+
+    #[test]
+    fn projects_client_attribute_scaling_through_rank_20() {
+        assert_eq!(
+            attribute_rank_table(20, 65).unwrap(),
+            [
+                20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 74, 77, 80,
+            ]
+        );
+
+        let rounded = attribute_rank_table(26, 50).unwrap();
+        assert_eq!((rounded[1], rounded[15], rounded[20]), (28, 50, 58));
+
+        let descending = attribute_rank_table(10, 0).unwrap();
+        assert_eq!((descending[1], descending[15], descending[20]), (9, 0, 0));
     }
 
     #[test]

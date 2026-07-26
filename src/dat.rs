@@ -23,6 +23,7 @@ pub(crate) struct DatArchive {
     hash_lookup: Vec<HashLookupEntry>,
     hash_to_mft: BTreeMap<u32, u32>,
     hashes_by_mft: BTreeMap<u32, Vec<u32>>,
+    sibling: Option<Box<DatArchive>>,
 }
 
 impl DatArchive {
@@ -42,6 +43,7 @@ impl DatArchive {
             hash_lookup,
             hash_to_mft,
             hashes_by_mft,
+            sibling: None,
         })
     }
 
@@ -76,11 +78,53 @@ impl DatArchive {
         read_dat_entry_from_file(&mut self.file, self.file_size, &entry)
     }
 
-    pub(crate) fn read_file_id(&mut self, file_id: u32) -> anyhow::Result<Option<Vec<u8>>> {
+    pub(crate) fn read_file_id_direct(&mut self, file_id: u32) -> anyhow::Result<Option<Vec<u8>>> {
         let Some(entry) = self.entry_for_file_id(file_id) else {
             return Ok(None);
         };
         read_dat_entry_from_file(&mut self.file, self.file_size, &entry).map(Some)
+    }
+
+    fn ensure_sibling(&mut self) {
+        if self.sibling.is_none() {
+            let sibling_name = if self.path.file_name().and_then(|s| s.to_str()) == Some("Gw.dat") {
+                "Gw.snapshot"
+            } else {
+                "Gw.dat"
+            };
+            let sibling_path = self
+                .path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(sibling_name);
+            if sibling_path.exists() && sibling_path != self.path {
+                if let Ok(sib) = DatArchive::open(&sibling_path) {
+                    self.sibling = Some(Box::new(sib));
+                }
+            }
+        }
+    }
+
+    pub(crate) fn read_file_id(&mut self, file_id: u32) -> anyhow::Result<Option<Vec<u8>>> {
+        let is_snapshot = self.path.file_name().and_then(|s| s.to_str()) == Some("Gw.snapshot");
+        if is_snapshot {
+            self.ensure_sibling();
+            if let Some(ref mut sib) = self.sibling {
+                if let Some(bytes) = sib.read_file_id_direct(file_id)? {
+                    return Ok(Some(bytes));
+                }
+            }
+            return self.read_file_id_direct(file_id);
+        }
+
+        if let Some(bytes) = self.read_file_id_direct(file_id)? {
+            return Ok(Some(bytes));
+        }
+        self.ensure_sibling();
+        if let Some(ref mut sib) = self.sibling {
+            return sib.read_file_id_direct(file_id);
+        }
+        Ok(None)
     }
 
     pub(crate) fn client_pe_data(&mut self) -> anyhow::Result<Vec<u8>> {

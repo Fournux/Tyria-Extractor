@@ -158,6 +158,89 @@ impl PeImage {
         self.read_u32_at(data, offset, context)
     }
 
+    fn backed_file_offset(&self, va: u32) -> Option<usize> {
+        let rva = u64::from(va.checked_sub(self.image_base)?);
+        self.sections.iter().find_map(|section| {
+            let start = u64::from(section.virtual_address);
+            let delta = rva.checked_sub(start)?;
+            if delta >= u64::from(section.raw_size) {
+                return None;
+            }
+            usize::try_from(u64::from(section.raw_pointer) + delta)
+                .ok()
+                .filter(|&offset| offset + 4 <= self.data_len)
+        })
+    }
+
+    pub(crate) fn locate_language_file_id_table(
+        &self,
+        data: &[u8],
+        files_per_language: usize,
+        language_count: usize,
+    ) -> anyhow::Result<u32> {
+        let required = files_per_language
+            .checked_mul(language_count)
+            .context("PE language table size overflow")?;
+        if required == 0 {
+            bail!("PE language table cannot be empty");
+        }
+
+        let mut candidates = Vec::new();
+        for section in &self.sections {
+            let start = section.raw_pointer as usize;
+            let end = start + section.raw_size as usize;
+            let mut run_start = start;
+            let mut run_len = 0;
+
+            for offset in (start..end).step_by(4) {
+                let valid = read_u32(data, offset)
+                    .ok()
+                    .and_then(|pointer| self.backed_file_offset(pointer))
+                    .and_then(|reference_offset| read_u32(data, reference_offset).ok())
+                    .is_some_and(|reference| {
+                        reference as u16 >= 0x100 && (reference >> 16) as u16 >= 0x100
+                    });
+
+                if valid {
+                    if run_len == 0 {
+                        run_start = offset;
+                    }
+                    run_len += 1;
+                    continue;
+                }
+
+                if run_len == required {
+                    let delta = u32::try_from(run_start - start)
+                        .context("PE language table offset exceeds u32")?;
+                    candidates.push(
+                        self.image_base
+                            .checked_add(section.virtual_address)
+                            .and_then(|va| va.checked_add(delta))
+                            .context("PE language table VA overflow")?,
+                    );
+                }
+                run_len = 0;
+            }
+
+            if run_len == required {
+                let delta = u32::try_from(run_start - start)
+                    .context("PE language table offset exceeds u32")?;
+                candidates.push(
+                    self.image_base
+                        .checked_add(section.virtual_address)
+                        .and_then(|va| va.checked_add(delta))
+                        .context("PE language table VA overflow")?,
+                );
+            }
+        }
+
+        match candidates.as_slice() {
+            [table_va] => Ok(*table_va),
+            [] => bail!("client language file-ID table not found in PE"),
+            _ => bail!("client language file-ID table is ambiguous in PE"),
+        }
+    }
+
     pub(crate) fn language_file_ids(
         &self,
         data: &[u8],
@@ -269,6 +352,41 @@ mod tests {
         assert_eq!(
             pe.language_file_ids(&bytes, IMAGE_BASE + SECTION_VA, 2, 0)?,
             vec![Some(reference_file_id), None]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn locates_relocated_language_file_id_table() -> anyhow::Result<()> {
+        let mut bytes = test_pe();
+        let table_offset = SECTION_RAW_OFFSET + 0x40;
+        let reference_offset = SECTION_RAW_OFFSET + 0x80;
+
+        for index in 0..4 {
+            let reference_va =
+                IMAGE_BASE + SECTION_VA + u32::try_from(reference_offset - SECTION_RAW_OFFSET)?;
+            write_u32(
+                &mut bytes,
+                table_offset + index * 4,
+                reference_va + (index * 4) as u32,
+            );
+            let (id0, id1) = encode_file_reference(123_456 + index as u32);
+            write_u32(
+                &mut bytes,
+                reference_offset + index * 4,
+                u32::from(id0) | (u32::from(id1) << 16),
+            );
+        }
+
+        let pe = PeImage::parse(&bytes)?;
+        let table_va = pe.locate_language_file_id_table(&bytes, 2, 2)?;
+        assert_eq!(
+            table_va,
+            IMAGE_BASE + SECTION_VA + u32::try_from(table_offset - SECTION_RAW_OFFSET)?
+        );
+        assert_eq!(
+            pe.language_file_ids(&bytes, table_va, 2, 1)?,
+            vec![Some(123_458), Some(123_459)]
         );
         Ok(())
     }

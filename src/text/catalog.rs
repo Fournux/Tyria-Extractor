@@ -5,8 +5,7 @@ use crate::{
     dat::DatArchive,
     pe::PeImage,
     text_records::{
-        self, CLIENT_LANGUAGE_CODES, CLIENT_TEXT_FILE_ID_TABLE_VA, CLIENT_TEXT_FILES_PER_LANGUAGE,
-        TEXT_RECORDS_PER_FILE,
+        self, CLIENT_LANGUAGE_CODES, CLIENT_TEXT_FILES_PER_LANGUAGE, TEXT_RECORDS_PER_FILE,
     },
 };
 
@@ -31,12 +30,17 @@ impl<'a> LocalizedTextReader<'a> {
         compact_seeds: &'a BTreeMap<u32, u64>,
         decoded_records: &'a BTreeMap<Vec<u8>, String>,
     ) -> anyhow::Result<Self> {
+        let language_file_id_table = pe.locate_language_file_id_table(
+            pe_data,
+            CLIENT_TEXT_FILES_PER_LANGUAGE,
+            CLIENT_LANGUAGE_CODES.len(),
+        )?;
         let localized_file_ids = CLIENT_LANGUAGE_CODES
             .iter()
             .map(|(language_index, code)| {
                 pe.language_file_ids(
                     pe_data,
-                    CLIENT_TEXT_FILE_ID_TABLE_VA,
+                    language_file_id_table,
                     CLIENT_TEXT_FILES_PER_LANGUAGE,
                     *language_index,
                 )

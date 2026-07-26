@@ -66,19 +66,19 @@ cargo run --release -- extract vendors `
   --packet-log ".\captures\<session-id>\tyria_skill_trainers.jsonl"
 ```
 
-For recurring work, the Bun scripts select the newest numeric
-`captures/<session-id>/` directory automatically and use
-`C:\Program Files (x86)\Guild Wars\Gw.dat` by default:
+For recurring work, the Makefile targets select the newest numeric
+`captures/<session-id>/` directory automatically and use the default
+local `Gw.dat`:
 
-```powershell
-bun run build:capture
-bun run inject
-bun run regen
-bun run extract:vendors
+```bash
+make build-capture
+make inject
+make regen
+make extract-vendors
 ```
 
 Set `GW_DAT` to use another archive, or `CAPTURE_DIR` to select a capture path
-or session ID instead of the newest one. Run `bun run` to list every target.
+or session ID instead of the newest one. Run `make help` to list every target.
 
 All extraction commands write below `output/` by default. `--out-dir <PATH>`
 overrides that common parent. Generated output remains local and Git-ignored:
@@ -103,43 +103,39 @@ Capture-backed extraction requires format version `5` and rejects missing health
 metadata, packet loss, write failures, incompatible world-packet schemas,
 duplicate or missing `capture_seq` values, and every pre-cutover JSONL.
 
-## Extraction status
+## Extraction capabilities
 
-**Legend:** ✅ Done · 🚧 In progress · ⬜ Not started
+| Dataset | Extracted data |
+|---|---|
+| Skills | Stable IDs, gameplay metadata, localized text, attribute scaling tables, and relationships |
+| Skill icons | Standard- and high-resolution PNG icons |
+| DAT textures | Web-ready PNGs from decodable ATEX, ATTX, DDS, and inline FFNA textures |
+| Items | Runtime identities, metadata, localized names and descriptions |
+| Item icons | Linked stream-1 PNGs; unresolved mappings are preserved rather than guessed |
+| Quests | Active quest fields, objective variants, rewards, and NPC role/map relationships |
+| NPCs | Runtime properties, spawn/map context, and localized names |
+| Vendors and skill trainers | Stable service-instance, item, and skill joins |
 
-| Dataset | Status | Current result |
-|---|:---:|---|
-| Skill template corpus | ✅ | 1,488 distinct IDs: 1,333 non-PvP skills/special rows plus 155 linked PvP variants, with metadata and text in all 11 client languages |
-| Skill icons | ✅ | Standard- and high-resolution PNG icons |
-| DAT textures | ✅ | 62,314 web-ready PNGs from every decodable ATEX, ATTX, DDS, and inline FFNA texture in the current archive |
-| Items | 🚧 | 377 observed identities in the current capture; all names and 351 descriptions resolve in all 11 client languages |
-| Item icons | 🚧 | Verified linked stream-1 PNGs for 309 of 333 observed `model_file_id` values; unresolved mappings are not guessed |
-| Quests | 🚧 | 11 observed active quests with localized fields, objective variants, rewards, and NPC role/map evidence |
-| Monsters / creatures | ⬜ | — |
-| NPCs | 🚧 | 99 observed models across maps 146, 148, and 194, with runtime metadata and names in all 11 client languages |
-| Vendors and skill trainers | 🚧 | 2 collectors / 2 offers, 4 merchants / 48 items, 0 crafters, and 1 trainer / 112 skills in the current capture corpus |
+Item extraction consumes official runtime definitions received by the client.
+The generated catalog reflects the supplied capture and does not infer entries
+that were not observed.
 
-Items remain in progress because the decoding and export pipeline works, but the
-official client must still receive every relevant runtime item definition before
-the catalog can be considered exhaustive.
-
-Quests remain in progress because no complete static quest table has been
-confirmed. The consumer preserves relations observed in official-client packet
-captures, but exhaustive quest, branch, dialogue, and prerequisite coverage is
-not yet proven.
+No complete static quest table has been confirmed. Quest extraction preserves
+relations observed in official-client packet captures without claiming
+exhaustive branch, dialogue, or prerequisite coverage.
 
 NPC extraction consumes the dedicated NPC properties, spawn, and map-context
-stream. Coverage is observational: the present corpus spans maps 146, 148, and
-194 and is not an exhaustive NPC list.
+streams. Its output represents the supplied capture rather than an inferred
+global NPC list.
 
-Vendor extraction emits stable service-instance/item/skill joins in
+Vendor extraction writes service-instance/item/skill joins to
 `output/vendors/{collectors,merchants,crafters,skill_trainers}/`, with one
 same-named JSON file per directory. A service instance is identified by
 `(map_id, npc_model_id, position)` because multiple NPCs can share one model.
-`output/vendors/coverage.json` lists those observed instances by map; it is a
-traversal progress ledger, not a claim that every outpost has been covered.
-Service entries use the per-agent `AGENT_UPDATE_NPC_NAME` EncString when their
-capture observed it and resolve it from `Gw.dat` in all 11 client languages.
+`output/vendors/coverage.json` records observed instances by map without
+inferring unobserved services. Service entries use the per-agent
+`AGENT_UPDATE_NPC_NAME` EncString when available and resolve it from `Gw.dat`
+in every client language.
 
 ## Data flow
 

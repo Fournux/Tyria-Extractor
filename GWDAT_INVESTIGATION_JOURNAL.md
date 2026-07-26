@@ -1,6 +1,6 @@
 # Gw.dat investigation journal
 
-Last updated: 2026-07-15
+Last updated: 2026-07-26
 
 This journal records durable discoveries, rejected interpretations, the latest capture evidence, and unresolved questions. Format details belong in the focused references:
 
@@ -37,7 +37,39 @@ The skill table stores numeric name and description string IDs, but those IDs al
 
 The client language file-ID array supplies the missing resource context. Following that array to the localized resources and then resolving the record ordinal produces text in all 11 client languages for every row in the corrected 1,488-ID template corpus. This replaced campaign-specific bases, name whitelists, and count-driven guessing with a client-defined lookup path.
 
+The table address moved from `0x00BEF1B8` in the preserved client to
+`0x00BF0210` in the 2026-07-26 client. The intervening address
+`0x00BF01E4` starts an unrelated 11-pointer `profBtn` array; treating it as
+the language table dereferences the small value `0x8e` as a PE virtual
+address. Both client images contain exactly one run of 1,089 backed pointers
+to canonical encoded file references, so the extractor now locates the table
+from that structure instead of a build-specific VA.
+
 The overcast byte at skill-row offset `0x34` is conditional: it is a cost only when bit `0x00000001` of the `0x10` flags field is set. Applying that condition to the corrected corpus leaves 24 overcast skills (14 at 5 and 10 at 10) and writes zero for the other 1,464 rows.
+
+The current client routine at `0x005A8910` computes skill attribute scaling
+from a rank, rank-0 value, and rank-15 value. It evaluates
+`rank * (value15 - value0) / 15`, rounds to the nearest integer with half
+values away from zero, adds `value0`, and clamps negative results to zero.
+The same client image stores `15.0` at `0x0094B930`; the helper at
+`0x0046DF80` applies the signed half adjustment before integer conversion.
+The extractor reproduces this behavior for ranks 0 through 20 without
+floating-point drift.
+
+Across 1,261 locally decoded English skill templates containing placeholders,
+only `%str1%`, `%str2%`, and `%str3%` occur. Every occurrence has a nonzero
+corresponding endpoint pair: scale (`0x5c` / `0x60`), bonus scale (`0x64` /
+`0x68`), and duration (`0x44` / `0x48`) respectively. Schema 2 therefore
+emits the three computed tables under `scaling.values_by_attribute_rank`.
+
+The 2026-07-26 `Gw.exe` contains one appended row, ID `3442`: a non-elite
+Nightfall PvP family-0 variant linked reciprocally with base ID `1547`. It
+raises the live executable selection to 1,489 rows (1,333 base rows plus 156
+variants). The local `Gw.snapshot` predates that executable and contains no
+client PE resource. Skill ID `3442` remains excluded until the validated
+snapshot corpus is deliberately re-baselined; extraction from the current
+`Gw.dat` therefore preserves the required 1,488-row milestone instead of
+silently changing its boundary.
 
 ## Confirmed item runtime, text, and icon bridge
 

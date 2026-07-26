@@ -1,7 +1,6 @@
 use anyhow::{Context, bail};
 use std::collections::BTreeMap;
 
-pub(crate) const CLIENT_TEXT_FILE_ID_TABLE_VA: u32 = 0x00BEF1B8;
 pub(crate) const CLIENT_TEXT_FILES_PER_LANGUAGE: usize = 99;
 pub(crate) const TEXT_RECORDS_PER_FILE: u32 = 1024;
 pub(crate) const CLIENT_LANGUAGE_CODES: &[(usize, &str)] = &[

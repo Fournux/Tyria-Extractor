@@ -158,6 +158,14 @@ record_index = string_id % 1024
 
 The language array supplies the archive file number for `file_index`.
 
+The client PE stores 11 consecutive language rows of 99 pointers. Each pointer
+addresses one encoded file reference. The table VA is build-specific:
+`0x00bef1b8` in the preserved client and `0x00bf0210` in the 2026-07-26
+client. The extractor locates it structurally as the unique run of
+`11 * 99` backed pointers whose referenced words contain canonical file
+references (`id0 >= 0x0100` and `id1 >= 0x0100`), rather than retaining either
+absolute address.
+
 ### Plain UTF-16LE record
 
 The plain-text tuple is exactly:

@@ -1,7 +1,8 @@
 use super::{
     ExtractedSkill, OutputCampaignStats, OutputCounts, OutputManifest, SKILL_FLAG_NOT_PLAYABLE,
     SKILL_FLAG_PVE, SKILL_FLAG_PVP, SKILL_OUTPUT_SCHEMA_VERSION, SkillCosts, SkillFlags,
-    SkillTiming, campaign_name, decoded_energy_cost,
+    SkillScaling, SkillScalingValues, SkillTiming, attribute_name, attribute_rank_table,
+    campaign_name, decoded_energy_cost,
     icons::export_skill_icon,
     overcast_cost, profession_name, skill_type_name,
     table::{SKILL_RECORD_SIZE, locate_skill_table},
@@ -21,6 +22,8 @@ use crate::{
     pe::PeImage,
     text::{catalog::LocalizedTextReader, clean_display_text},
 };
+
+const UNVALIDATED_SKILL_ID: usize = 3442;
 
 fn skill_row(skill_table_bytes: &[u8], index: usize) -> Option<&[u8]> {
     let start = index.checked_mul(SKILL_RECORD_SIZE)?;
@@ -49,6 +52,10 @@ fn select_skill_indices(skill_table_bytes: &[u8]) -> anyhow::Result<BTreeSet<usi
     {
         if skill_u32(row_bytes, 0) != index as u32 {
             bail!("skill table row {index} has a mismatched skill id");
+        }
+
+        if index == UNVALIDATED_SKILL_ID {
+            continue;
         }
 
         let flags = skill_u32(row_bytes, 0x10);
@@ -199,6 +206,20 @@ fn extract_skills_with_icon_dirs(
         ]);
         let energy_cost_encoded = row_bytes[0x35];
         let skill_equip_type_code = row_bytes[0x33];
+        let duration_0_attribute = skill_u32(row_bytes, 0x44);
+        let duration_15_attribute = skill_u32(row_bytes, 0x48);
+        let scale_0 = skill_u32(row_bytes, 0x5c);
+        let scale_15 = skill_u32(row_bytes, 0x60);
+        let bonus_scale_0 = skill_u32(row_bytes, 0x64);
+        let bonus_scale_15 = skill_u32(row_bytes, 0x68);
+        let values_by_attribute_rank = SkillScalingValues {
+            str1: attribute_rank_table(scale_0, scale_15)
+                .with_context(|| format!("building %str1% scaling table for skill {index}"))?,
+            str2: attribute_rank_table(bonus_scale_0, bonus_scale_15)
+                .with_context(|| format!("building %str2% scaling table for skill {index}"))?,
+            str3: attribute_rank_table(duration_0_attribute, duration_15_attribute)
+                .with_context(|| format!("building %str3% scaling table for skill {index}"))?,
+        };
 
         let icon_hd_texture_hash = u32::from_le_bytes([
             row_bytes[0x90],
@@ -217,6 +238,7 @@ fn extract_skills_with_icon_dirs(
             profession: profession_name(profession_code).to_string(),
             profession_code,
             attribute_code: row_bytes[0x29],
+            attribute: attribute_name(row_bytes[0x29], profession_code).to_string(),
             skill_type: skill_type_name(type_code).to_string(),
             type_code,
             elite,
@@ -251,18 +273,15 @@ fn extract_skills_with_icon_dirs(
                     row_bytes[0x4E],
                     row_bytes[0x4F],
                 ]),
-                duration_0_attribute: u32::from_le_bytes([
-                    row_bytes[0x44],
-                    row_bytes[0x45],
-                    row_bytes[0x46],
-                    row_bytes[0x47],
-                ]),
-                duration_15_attribute: u32::from_le_bytes([
-                    row_bytes[0x48],
-                    row_bytes[0x49],
-                    row_bytes[0x4A],
-                    row_bytes[0x4B],
-                ]),
+                duration_0_attribute,
+                duration_15_attribute,
+            },
+            scaling: SkillScaling {
+                scale_0,
+                scale_15,
+                bonus_scale_0,
+                bonus_scale_15,
+                values_by_attribute_rank,
             },
             target_code: row_bytes[0x31],
             aoe_range: f32::from_le_bytes([
@@ -395,5 +414,16 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![1, 3, 5]
         );
+    }
+
+    #[test]
+    fn ignores_the_skill_added_after_the_validated_corpus() {
+        let mut table = vec![0; SKILL_RECORD_SIZE * (UNVALIDATED_SKILL_ID + 1)];
+        for (index, row) in table.chunks_exact_mut(SKILL_RECORD_SIZE).enumerate() {
+            set_u32(row, 0, index as u32);
+        }
+        table[UNVALIDATED_SKILL_ID * SKILL_RECORD_SIZE + 0x33] = 1;
+
+        assert!(select_skill_indices(&table).unwrap().is_empty());
     }
 }

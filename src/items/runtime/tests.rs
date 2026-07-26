@@ -243,6 +243,20 @@ fn packet_log_text_decode_trace_rows_feed_compact_text_record_lookup() -> anyhow
 }
 
 #[test]
+fn compact_record_without_seed_stays_unresolved() -> anyhow::Result<()> {
+    let map = text_records::parse_text_record_map_with_decoded_records_and_seeds(
+        &[
+            0x0d, 0x00, 0x42, 0x00, 0x07, 0x00, 0x09, 0xce, 0xf0, 0x9b, 0x81, 0x68, 0xe4,
+        ],
+        &BTreeMap::new(),
+        &BTreeMap::new(),
+    )?;
+
+    assert!(map.is_empty());
+    Ok(())
+}
+
+#[test]
 fn compact_record_seed_decodes_without_client_string_output() -> anyhow::Result<()> {
     let map = text_records::parse_text_record_map_with_decoded_records_and_seeds(
         &[
