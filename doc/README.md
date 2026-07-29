@@ -6,3 +6,4 @@
 - [Item identity, localized text, and icons](ITEM_EXTRACTION.md)
 - [NPC identity, localized names, and vendor services](NPC_AND_VENDOR_EXTRACTION.md)
 - [Quest packets, localized text, dialogue roles, and rewards](QUEST_EXTRACTION.md)
+- [Building and injecting the runtime sniffer with Steam and Proton](RUNTIME_CAPTURE.md)

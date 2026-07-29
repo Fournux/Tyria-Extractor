@@ -8,6 +8,7 @@ This journal records durable discoveries, rejected interpretations, the latest c
 - [Compression and texture decoding](doc/DECOMPRESSION.md)
 - [Skill extraction](doc/SKILL_EXTRACTION.md)
 - [Runtime item identity, text, and icons](doc/ITEM_EXTRACTION.md)
+- [Runtime capture with Steam and Proton](doc/RUNTIME_CAPTURE.md)
 
 ## Evidence policy
 
@@ -103,10 +104,10 @@ Live model-file IDs for the Salvage Kit, Pile of Glittering Dust, and Grim Cesta
 
 Two independent item captures currently provide the following coverage:
 
-| Capture | Unique `(model_id, model_file_id)` pairs | Fully named | Fully described |
-| --- | ---: | ---: | ---: |
-| Older capture | 382 | 382 | 361 |
-| Fresh compact capture | 322 | 322 | 301 |
+| Capture               | Unique `(model_id, model_file_id)` pairs | Fully named | Fully described |
+| --------------------- | ---------------------------------------: | ----------: | --------------: |
+| Older capture         |                                      382 |         382 |             361 |
+| Fresh compact capture |                                      322 |         322 |             301 |
 
 Their pair sets overlap by 318. The compact capture adds 4 pairs, the older capture has 64 pairs not seen in the compact capture, and their union contains 386 pairs.
 
@@ -149,22 +150,22 @@ No complete static `quest_id -> metadata/text references` inventory has been ide
 
 A direct official-client capture confirmed the following fixed packet layouts. Byte counts include the 32-bit header.
 
-| Header | Relevant content | Bytes |
-| --- | --- | ---: |
-| `0x0020 AGENT_SPAWNED` | `agent_id`, NPC model in `agent_type`, position/state | 116 |
-| `0x0021 AGENT_DESPAWNED` | `agent_id` | 8 |
-| `0x0049 QUEST_ADD` | `quest_id`, marker, `map_to`, state, category/name/NPC `[8]`, `map_from` | 80 |
-| `0x004C QUEST_DESCRIPTION` | `quest_id`, description `[128]`, objectives `[128]` | 520 |
-| `0x0050 QUEST_GENERAL_INFO` | `quest_id`, state, category/name/NPC `[8]`, `map_from` | 64 |
-| `0x0051 QUEST_UPDATE_MARKER` | `quest_id`, marker, `map_to` | 24 |
-| `0x0052 QUEST_REMOVE` | `quest_id` | 8 |
-| `0x0053 QUEST_ADD_MARKER` | `quest_id`, marker, `map_to` | 24 |
-| `0x0054 QUEST_UPDATE_OBJECTIVES` | `quest_id`, objectives `[128]` | 264 |
-| `0x0056 NPC_UPDATE_PROPERTIES` | NPC model/file IDs, flags, profession, level, name `[8]` | 52 |
-| `0x007E DIALOG_BUTTON` | icon, button text `[128]`, `dialog_id`, skill ID | 272 |
-| `0x0081 DIALOG_SENDER` | `agent_id` | 8 |
-| `0x009B AGENT_UPDATE_NPC_NAME` | `agent_id`, display-name EncString `[32]` | 72 |
-| `0x0199 INSTANCE_LOAD_INFO` | player `agent_id`, map, instance metadata | 28 |
+| Header                           | Relevant content                                                         | Bytes |
+| -------------------------------- | ------------------------------------------------------------------------ | ----: |
+| `0x0020 AGENT_SPAWNED`           | `agent_id`, NPC model in `agent_type`, position/state                    |   116 |
+| `0x0021 AGENT_DESPAWNED`         | `agent_id`                                                               |     8 |
+| `0x0049 QUEST_ADD`               | `quest_id`, marker, `map_to`, state, category/name/NPC `[8]`, `map_from` |    80 |
+| `0x004C QUEST_DESCRIPTION`       | `quest_id`, description `[128]`, objectives `[128]`                      |   520 |
+| `0x0050 QUEST_GENERAL_INFO`      | `quest_id`, state, category/name/NPC `[8]`, `map_from`                   |    64 |
+| `0x0051 QUEST_UPDATE_MARKER`     | `quest_id`, marker, `map_to`                                             |    24 |
+| `0x0052 QUEST_REMOVE`            | `quest_id`                                                               |     8 |
+| `0x0053 QUEST_ADD_MARKER`        | `quest_id`, marker, `map_to`                                             |    24 |
+| `0x0054 QUEST_UPDATE_OBJECTIVES` | `quest_id`, objectives `[128]`                                           |   264 |
+| `0x0056 NPC_UPDATE_PROPERTIES`   | NPC model/file IDs, flags, profession, level, name `[8]`                 |    52 |
+| `0x007E DIALOG_BUTTON`           | icon, button text `[128]`, `dialog_id`, skill ID                         |   272 |
+| `0x0081 DIALOG_SENDER`           | `agent_id`                                                               |     8 |
+| `0x009B AGENT_UPDATE_NPC_NAME`   | `agent_id`, display-name EncString `[32]`                                |    72 |
+| `0x0199 INSTANCE_LOAD_INFO`      | player `agent_id`, map, instance metadata                                |    28 |
 
 Two clean full-pipeline captures confirm installation and valid framing for all 13 families. They include nonzero `AGENT_DESPAWNED` traffic and `INSTANCE_LOAD_INFO` contexts for maps `194`, `148`, and `146`. Hook installation records the current client's field descriptors and rejects any family whose calculated size differs from the expected fixed size.
 
@@ -308,6 +309,7 @@ trainer on map `194` came from the older session without `0x009B`, so it
 intentionally remains unnamed until that instance is recaptured.
 
 ### Session capture stream separation
+
 Format 5 gives every persisted data contract its own session file:
 `tyria_items.jsonl`, `tyria_quests.jsonl`, `tyria_npcs.jsonl`,
 `tyria_vendor_context.jsonl`, `tyria_collectors.jsonl`,
@@ -372,9 +374,9 @@ The new `extract images` path scanned all 176,541 extractable MFT entries in the
 
 The exhaustive pass exposed three previously unsupported first-party texture cases:
 
-* `DXTA` is an alpha-only BC4-style format using eight bytes per 4×4 block. Its interpolated channel is exported as opaque greyscale. This accounts for 12,627 textures.
-* ATTX resources may end with non-word container bytes after the encoded image. The decoder now consumes the declared data range and complete tail words rather than requiring the whole MFT payload length to be divisible by four.
-* Subcode bit `0x10` on 256×256 DXT3-family textures reserves and unswizzles the two outer block rows and columns through the client subcode-1/subcode-7 path. Three ATTX textures that previously exhausted their planar color tail now decode.
+- `DXTA` is an alpha-only BC4-style format using eight bytes per 4×4 block. Its interpolated channel is exported as opaque greyscale. This accounts for 12,627 textures.
+- ATTX resources may end with non-word container bytes after the encoded image. The decoder now consumes the declared data range and complete tail words rather than requiring the whole MFT payload length to be divisible by four.
+- Subcode bit `0x10` on 256×256 DXT3-family textures reserves and unswizzles the two outer block rows and columns through the client subcode-1/subcode-7 path. Three ATTX textures that previously exhausted their planar color tail now decode.
 
 Nineteen DDS resources use a zero FourCC, pixel-format flag `0x80000`, 16 bits per pixel, and masks `0x00ff` / `0xff00`. They are preserved as two-channel bump-map PNGs. The final format distribution is recorded in `images/manifest.json`; generated images remain local and Git-ignored.
 
@@ -391,6 +393,32 @@ with 48 items, no observed crafter, and 1 skill trainer with 112 skills. These
 counts describe the present local archive and capture corpus; the dated
 176,541-entry / 62,267-image result above remains the evidence from the earlier
 archive revision.
+
+## Linux Proton injection validation (2026-07-22)
+
+On the Linux extraction host, plain `cargo build` for target
+`i686-pc-windows-msvc` could not link without the Microsoft toolchain.
+`cargo-xwin` 0.23 initially cached only its default x86_64 and ARM64 SDK
+libraries, leaving the x86 import libraries unavailable. Setting
+`XWIN_ARCH=x86` for the release `cargo xwin build` produced the 32-bit injector
+and DLL.
+
+Session `1784744036204` loaded `tyria_sniffer.dll` from the repository through
+Wine's `Z:` mapping. Session `1784745070077` loaded a copied DLL beside
+`Gw.exe`, without a `Z:` path. Both sessions installed the text decoder, item,
+quest request, world, and vendor hook groups for client PE timestamp
+`1784679633`; their first capture-health rows contain zero drops and write
+failures.
+
+These two clients were launched manually through Steam app `29720`'s Proton
+prefix with `cachyos-11.0-20260602-slr`, outside Steam's normal launch path.
+Both became unresponsive. A separate manual launch then became unresponsive
+before any injector was run and created no new capture session. The observed
+freeze therefore cannot be attributed specifically to injection, and manual
+out-of-Steam launches are not valid responsiveness tests. Normal capture
+sessions must use Steam's launch environment. The repeatable setup is
+documented in
+[Runtime Capture on Linux with Proton](doc/RUNTIME_CAPTURE.md).
 
 ## Open questions
 
